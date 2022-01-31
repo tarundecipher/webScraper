@@ -23,6 +23,7 @@ sequelize
     console.log(err);
   });
 
-process.on("exit", function () {
-  scp.export_data_tocsv();
+process.on("SIGINT", async function () {
+  await scp.export_data_tocsv();
+  process.exit();
 });

@@ -5,6 +5,7 @@ const util = require("util");
 const { sequelize, Question } = require("./db/db");
 const question_format = require("./Question_format/question_format");
 const queue = require("./Queue/queue");
+const createCsvWriter = require("csv-writer").createObjectCsvWriter;
 
 module.exports = class scrape {
   constructor() {
@@ -20,14 +21,17 @@ module.exports = class scrape {
       .then((html) => {
         this.concurrent++;
         const upvotes = this.extract_vote_count(html, url);
-        this.question_format.upvotes[url] = upvotes;
+        this.question_format.upvotes.set(url, upvotes);
         const answers = this.extract_answer_count(html);
-        this.question_format.answers[url] = answers;
-        if (isNaN(this.question_format.freq[url])) {
-          this.question_format.freq[url] = 1;
+        this.question_format.answers.set(url, answers);
+        if (isNaN(this.question_format.freq.get(url))) {
+          this.question_format.freq.set(url, 1);
           this.extract_links(html);
         } else {
-          this.question_format.freq[url]++;
+          this.question_format.freq.set(
+            url,
+            this.question_format.freq.get(url) + 1
+          );
         }
         this.update_or_create_new(url, upvotes, answers);
       })
@@ -81,7 +85,8 @@ module.exports = class scrape {
           this.request(temp_url);
         } else if (this.concurrent > 0 && !this.backlog_queue.isempty()) {
           this.concurrent--;
-          this.request(this.backlog_queue.pop());
+          const queue_url = this.backlog_queue.pop();
+          this.request(queue_url);
         } else if (this.concurrent <= 0) {
           this.backlog_queue.push(temp_url);
         }
@@ -108,14 +113,45 @@ module.exports = class scrape {
           url: url,
           upvotes: upvotes,
           answers: answers,
-          frequency: this.question_format.freq[url],
+          frequency: this.question_format.freq.get(url),
         },
         { where: { url: url } }
       );
     }
   }
 
-  export_data_tocsv() {
+  async export_data_tocsv() {
     console.log("Exporting Data to CSV");
+    let final_data = [];
+    let columns = {
+      url: "url",
+      upvotes: "upvotes",
+      answers: "answers",
+      frequency: "frequency",
+    };
+
+    this.question_format.freq.forEach((value, key, map) => {
+      const upvotes = this.question_format.upvotes.get(key);
+      const answers = this.question_format.answers.get(key);
+      final_data.push({
+        url: key,
+        upvotes: upvotes,
+        answers: answers,
+        freq: value,
+      });
+    });
+    console.log(final_data);
+    const csvWriter = createCsvWriter({
+      path: "/home/tarundecipher/Documents/CODING PROGRAMS/webCrawler/scraped_data.csv",
+      header: [
+        { id: "url", title: "URL" },
+        { id: "upvotes", title: "Upvotes" },
+        { id: "answers", title: "No of Answers" },
+        { id: "freq", title: "Frequency" },
+      ],
+    });
+    console.log(final_data);
+    await csvWriter.writeRecords(final_data);
+    console.log("CSV created");
   }
 };
