@@ -4,9 +4,12 @@ const { map } = require("bluebird");
 const util = require("util");
 const { sequelize, Question } = require("./db/db");
 const question_format = require("./Question_format/question_format");
+const queue = require("./Queue/queue");
 
 module.exports = class scrape {
   constructor() {
+    this.concurrent = 5;
+    this.backlog_queue = new queue();
     this.base_url = "https://stackoverflow.com";
     this.question_format = new question_format();
   }
@@ -15,6 +18,7 @@ module.exports = class scrape {
     console.log(url);
     rp(url)
       .then((html) => {
+        this.concurrent++;
         const upvotes = this.extract_vote_count(html, url);
         this.question_format.upvotes[url] = upvotes;
         const answers = this.extract_answer_count(html);
@@ -22,6 +26,8 @@ module.exports = class scrape {
         if (isNaN(this.question_format.freq[url])) {
           this.question_format.freq[url] = 1;
           this.extract_links(html);
+        } else {
+          this.question_format.freq[url]++;
         }
         this.update_or_create_new(url, upvotes, answers);
       })
@@ -70,13 +76,15 @@ module.exports = class scrape {
     links.forEach((val, index) => {
       if (val.length > ref.length && val.slice(0, ref.length) == ref) {
         const temp_url = this.base_url + val;
-        if (!isNaN(this.question_format.freq[temp_url])) {
-          this.question_format.freq[temp_url]++;
-        }
-        console.log(this.question_format.freq[temp_url]);
-        setTimeout(() => {
+        if (this.concurrent > 0 && this.backlog_queue.isempty()) {
+          this.concurrent--;
           this.request(temp_url);
-        }, index * 1000);
+        } else if (this.concurrent > 0 && !this.backlog_queue.isempty()) {
+          this.concurrent--;
+          this.request(this.backlog_queue.pop());
+        } else if (this.concurrent <= 0) {
+          this.backlog_queue.push(temp_url);
+        }
       }
     });
   }
