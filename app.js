@@ -6,10 +6,11 @@ const { sequelize } = require("./db/db");
 
 const url = "https://stackoverflow.com/questions";
 const url2 =
-  "https://stackoverflow.com/questions/492994/compare-two-dates-with-javascript";
+  "https://stackoverflow.com/questions/5062614/how-to-decide-when-to-use-node-js";
+
+const scp = new scrape();
 
 async function scrape_stack() {
-  const scp = new scrape();
   await scp.request(url2);
 }
 
@@ -21,3 +22,7 @@ sequelize
   .catch((err) => {
     console.log(err);
   });
+
+process.on("exit", function () {
+  scp.export_data_tocsv();
+});
