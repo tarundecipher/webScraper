@@ -1,6 +1,8 @@
 const { DataTypes } = require("sequelize");
 const { Question } = require("./db");
-
+/**
+ * Table schema for Questions
+ */
 const QuestionModel = {
   id: {
     type: DataTypes.INTEGER,

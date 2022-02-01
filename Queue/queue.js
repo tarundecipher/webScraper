@@ -1,3 +1,6 @@
+/**
+ * Custom Queue Data Structure as JS does not contain one inherently.
+ */
 module.exports = class queue {
   constructor() {
     this.array = [];
